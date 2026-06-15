@@ -1,4 +1,79 @@
 declare namespace API {
+  type App = {
+    id?: number;
+    appName?: string;
+    cover?: string;
+    initPrompt?: string;
+    codeGenType?: string;
+    deployKey?: string;
+    deployedTime?: string;
+    priority?: number;
+    userId?: number;
+    editTime?: string;
+    createTime?: string;
+    updateTime?: string;
+    isDelete?: number;
+  };
+
+  type AppAddRequest = {
+    appName?: string;
+    initPrompt?: string;
+  };
+
+  type AppAdminUpdateRequest = {
+    id?: number;
+    appName?: string;
+    cover?: string;
+    priority?: number;
+  };
+
+  type AppQueryRequest = {
+    pageNum?: number;
+    pageSize?: number;
+    sortField?: string;
+    sortOrder?: string;
+    id?: number;
+    appName?: string;
+    cover?: string;
+    initPrompt?: string;
+    codeGenType?: string;
+    deployKey?: string;
+    priority?: number;
+    userId?: number;
+  };
+
+  type AppUpdateRequest = {
+    id?: number;
+    appName?: string;
+  };
+
+  type AppVO = {
+    id?: number;
+    appName?: string;
+    cover?: string;
+    initPrompt?: string;
+    codeGenType?: string;
+    deployKey?: string;
+    deployedTime?: string;
+    priority?: number;
+    userId?: number;
+    createTime?: string;
+    updateTime?: string;
+    user?: UserVO;
+  };
+
+  type BaseResponseApp = {
+    code?: number;
+    data?: App;
+    message?: string;
+  };
+
+  type BaseResponseAppVO = {
+    code?: number;
+    data?: AppVO;
+    message?: string;
+  };
+
   type BaseResponseBoolean = {
     code?: number;
     data?: boolean;
@@ -14,6 +89,12 @@ declare namespace API {
   type BaseResponseLong = {
     code?: number;
     data?: number;
+    message?: string;
+  };
+
+  type BaseResponsePageAppVO = {
+    code?: number;
+    data?: PageAppVO;
     message?: string;
   };
 
@@ -45,6 +126,14 @@ declare namespace API {
     id?: number;
   };
 
+  type getAppByIdForAdminParams = {
+    id: number;
+  };
+
+  type getAppVOByIdParams = {
+    id: number;
+  };
+
   type getUserByIdParams = {
     id: number;
   };
@@ -62,6 +151,15 @@ declare namespace API {
     userRole?: string;
     createTime?: string;
     updateTime?: string;
+  };
+
+  type PageAppVO = {
+    records?: AppVO[];
+    pageNumber?: number;
+    pageSize?: number;
+    totalPage?: number;
+    totalRow?: number;
+    optimizeCountQuery?: boolean;
   };
 
   type PageUserVO = {
