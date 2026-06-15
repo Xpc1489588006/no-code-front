@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, h } from 'vue'
-import { UserOutlined } from '@ant-design/icons-vue'
+import { LoginOutlined, LogoutOutlined, UserAddOutlined } from '@ant-design/icons-vue'
+import { message } from 'ant-design-vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
+import { userLogout } from '@/api/userController'
+import { useLoginUserStore } from '@/stores/loginUser'
 
 interface MenuItem {
   key: string
@@ -17,9 +21,13 @@ const props = defineProps<{
 
 const route = useRoute()
 const router = useRouter()
+const loginUserStore = useLoginUserStore()
+const { loginUser } = storeToRefs(loginUserStore)
 
 const selectedKeys = computed(() => {
-  const matchedItem = props.menuItems.find((item) => route.path === item.path || route.path.startsWith(`${item.path}/`))
+  const matchedItem = props.menuItems.find(
+    (item) => route.path === item.path || route.path.startsWith(`${item.path}/`),
+  )
   return matchedItem ? [matchedItem.key] : []
 })
 
@@ -30,10 +38,36 @@ const menuOptions = computed(() =>
   })),
 )
 
+const isLoggedIn = computed(() => Boolean(loginUser.value?.id))
+
 const handleMenuClick = ({ key }: { key: string }) => {
   const target = props.menuItems.find((item) => item.key === key)
   if (target && target.path !== route.path) {
     router.push(target.path)
+  }
+}
+
+const handleLoginClick = () => {
+  router.push('/user/login')
+}
+
+const handleRegisterClick = () => {
+  router.push('/user/register')
+}
+
+const handleLogout = async () => {
+  try {
+    const res = await userLogout()
+    if (res.data.code === 0 && res.data.data) {
+      loginUserStore.clearLoginUser()
+      message.success('已退出登录')
+      await router.push('/user/login')
+      return
+    }
+    message.error(res.data.message || '退出登录失败')
+  } catch (error) {
+    console.error('user logout failed', error)
+    message.error('退出登录失败，请稍后重试')
   }
 }
 </script>
@@ -55,7 +89,20 @@ const handleMenuClick = ({ key }: { key: string }) => {
         />
       </div>
       <div class="global-header__right">
-        <a-button type="primary" :icon="h(UserOutlined)">登录</a-button>
+        <template v-if="isLoggedIn">
+          <a-space size="middle">
+            <a-typography-text class="global-header__user-name">
+              {{ loginUser.userName || loginUser.userAccount || '当前用户' }}
+            </a-typography-text>
+            <a-button :icon="h(LogoutOutlined)" @click="handleLogout">退出登录</a-button>
+          </a-space>
+        </template>
+        <template v-else>
+          <a-space size="small">
+            <a-button :icon="h(UserAddOutlined)" @click="handleRegisterClick">注册</a-button>
+            <a-button type="primary" :icon="h(LoginOutlined)" @click="handleLoginClick">登录</a-button>
+          </a-space>
+        </template>
       </div>
     </div>
   </a-layout-header>
@@ -129,6 +176,11 @@ const handleMenuClick = ({ key }: { key: string }) => {
   flex: 0 0 auto;
 }
 
+.global-header__user-name {
+  max-width: 180px;
+  color: #595959;
+}
+
 @media (max-width: 768px) {
   .global-header {
     height: auto;
@@ -155,6 +207,10 @@ const handleMenuClick = ({ key }: { key: string }) => {
   .global-header__right {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .global-header__user-name {
+    max-width: 120px;
   }
 }
 </style>

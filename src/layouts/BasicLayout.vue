@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { GithubOutlined, HomeOutlined, MessageOutlined, UserOutlined } from '@ant-design/icons-vue'
 import GlobalHeader from '@/components/GlobalHeader.vue'
 import logoSrc from '@/assets/logo.png'
+import { useLoginUserStore } from '@/stores/loginUser'
 
 const menuItems = [
   {
@@ -23,6 +25,12 @@ const menuItems = [
     icon: UserOutlined,
   },
 ]
+
+const loginUserStore = useLoginUserStore()
+
+onMounted(() => {
+  loginUserStore.fetchLoginUser()
+})
 </script>
 
 <template>
