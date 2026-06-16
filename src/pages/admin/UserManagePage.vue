@@ -147,6 +147,7 @@ interface SearchParams extends API.UserQueryRequest {
 }
 
 interface EditFormState extends API.UserUpdateRequest {
+  id?: number | string
   userAvatar: string
   userName: string
   userProfile: string
@@ -155,7 +156,7 @@ interface EditFormState extends API.UserUpdateRequest {
 
 const loading = ref(false)
 const saving = ref(false)
-const deletingId = ref<number>()
+const deletingId = ref<number | string>()
 const editModalVisible = ref(false)
 const editingTarget = ref<API.UserVO | API.LoginUserVO>()
 const tableData = ref<API.UserVO[]>([])

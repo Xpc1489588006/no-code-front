@@ -116,8 +116,9 @@ const handleLogout = async () => {
   height: 64px;
   padding-inline: 0;
   line-height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #f0f0f0;
+  background: rgba(255, 255, 255, 0.82);
+  border-bottom: 1px solid rgba(5, 5, 5, 0.06);
+  backdrop-filter: blur(18px);
 }
 
 .global-header__inner {
@@ -125,7 +126,7 @@ const handleLogout = async () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  width: min(100%, 1200px);
+  width: min(100%, 1280px);
   height: 100%;
   margin: 0 auto;
   padding-inline: 24px;
@@ -144,7 +145,7 @@ const handleLogout = async () => {
   align-items: center;
   gap: 12px;
   min-width: 0;
-  color: #1f1f1f;
+  color: #141414;
 }
 
 .global-header__brand:hover {
@@ -160,13 +161,14 @@ const handleLogout = async () => {
 
 .global-header__title {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .global-header__menu {
   flex: 1;
   min-width: 0;
+  background: transparent;
   border-bottom: none;
 }
 
