@@ -26,6 +26,11 @@ const menuItems = computed(() => {
         path: '/admin/appManage',
       },
       {
+        key: 'chat-manage',
+        label: '对话管理',
+        path: '/admin/chatManage',
+      },
+      {
         key: 'user-manage',
         label: '用户管理',
         path: '/admin/userManage',

@@ -1,6 +1,6 @@
 declare namespace API {
   type App = {
-    id?: number | string;
+    id?: string | number;
     appName?: string;
     cover?: string;
     initPrompt?: string;
@@ -8,7 +8,7 @@ declare namespace API {
     deployKey?: string;
     deployedTime?: string;
     priority?: number;
-    userId?: number;
+    userId?: string | number;
     editTime?: string;
     createTime?: string;
     updateTime?: string;
@@ -22,14 +22,14 @@ declare namespace API {
   };
 
   type AppAdminUpdateRequest = {
-    id?: number | string;
+    id?: string | number;
     appName?: string;
     cover?: string;
     priority?: number;
   };
 
   type AppDeployRequest = {
-    appId?: number | string;
+    appId?: string | number;
   };
 
   type AppQueryRequest = {
@@ -37,23 +37,23 @@ declare namespace API {
     pageSize?: number;
     sortField?: string;
     sortOrder?: string;
-    id?: number | string;
+    id?: string | number;
     appName?: string;
     cover?: string;
     initPrompt?: string;
     codeGenType?: string;
     deployKey?: string;
     priority?: number;
-    userId?: number | string;
+    userId?: string | number;
   };
 
   type AppUpdateRequest = {
-    id?: number | string;
+    id?: string | number;
     appName?: string;
   };
 
   type AppVO = {
-    id?: number | string;
+    id?: string | number;
     appName?: string;
     cover?: string;
     initPrompt?: string;
@@ -61,7 +61,7 @@ declare namespace API {
     deployKey?: string;
     deployedTime?: string;
     priority?: number;
-    userId?: number | string;
+    userId?: string | number;
     createTime?: string;
     updateTime?: string;
     user?: UserVO;
@@ -85,6 +85,12 @@ declare namespace API {
     message?: string;
   };
 
+  type BaseResponseChatHistoryVO = {
+    code?: number;
+    data?: ChatHistoryVO;
+    message?: string;
+  };
+
   type BaseResponseLoginUserVO = {
     code?: number;
     data?: LoginUserVO;
@@ -93,13 +99,19 @@ declare namespace API {
 
   type BaseResponseLong = {
     code?: number;
-    data?: number | string;
+    data?: string | number;
     message?: string;
   };
 
   type BaseResponsePageAppVO = {
     code?: number;
     data?: PageAppVO;
+    message?: string;
+  };
+
+  type BaseResponsePageChatHistoryVO = {
+    code?: number;
+    data?: PageChatHistoryVO;
     message?: string;
   };
 
@@ -127,33 +139,77 @@ declare namespace API {
     message?: string;
   };
 
+  type ChatHistoryAddRequest = {
+    appId?: string | number;
+    messageType?: string;
+    content?: string;
+    errorMessage?: string;
+  };
+
+  type ChatHistoryQueryRequest = {
+    pageNum?: number;
+    pageSize?: number;
+    sortField?: string;
+    sortOrder?: string;
+    id?: string | number;
+    appId?: string | number;
+    messageType?: string;
+    content?: string;
+    userId?: string | number;
+    cursor?: string;
+  };
+
+  type ChatHistoryVO = {
+    id?: string | number;
+    appId?: string | number;
+    messageType?: string;
+    content?: string;
+    errorMessage?: string;
+    userId?: string | number;
+    createTime?: string;
+    updateTime?: string;
+    user?: UserVO;
+  };
+
   type chatToGenCodeParams = {
-    appId: number | string;
+    appId: string | number;
     message: string;
   };
 
+  type deleteChatHistoryByAdminParams = {
+    id: string | number;
+  };
+
+  type deleteChatHistoryByAppIdForAdminParams = {
+    appId: string | number;
+  };
+
   type DeleteRequest = {
-    id?: number | string;
+    id?: string | number;
   };
 
   type getAppByIdForAdminParams = {
-    id: number | string;
+    id: string | number;
   };
 
   type getAppVOByIdParams = {
-    id: number | string;
+    id: string | number;
+  };
+
+  type getChatHistoryVOByIdParams = {
+    id: string | number;
   };
 
   type getUserByIdParams = {
-    id: number | string;
+    id: string | number;
   };
 
   type getUserVOByIdParams = {
-    id: number | string;
+    id: string | number;
   };
 
   type LoginUserVO = {
-    id?: number | string;
+    id?: string | number;
     userAccount?: string;
     userName?: string;
     userAvatar?: string;
@@ -165,6 +221,15 @@ declare namespace API {
 
   type PageAppVO = {
     records?: AppVO[];
+    pageNumber?: number;
+    pageSize?: number;
+    totalPage?: number;
+    totalRow?: number;
+    optimizeCountQuery?: boolean;
+  };
+
+  type PageChatHistoryVO = {
+    records?: ChatHistoryVO[];
     pageNumber?: number;
     pageSize?: number;
     totalPage?: number;
@@ -184,7 +249,7 @@ declare namespace API {
   type ServerSentEventString = true;
 
   type User = {
-    id?: number | string;
+    id?: string | number;
     userAccount?: string;
     userPassword?: string;
     userName?: string;
@@ -215,7 +280,7 @@ declare namespace API {
     pageSize?: number;
     sortField?: string;
     sortOrder?: string;
-    id?: number | string;
+    id?: string | number;
     userName?: string;
     userAccount?: string;
     userProfile?: string;
@@ -229,7 +294,7 @@ declare namespace API {
   };
 
   type UserUpdateRequest = {
-    id?: number | string;
+    id?: string | number;
     userName?: string;
     userAvatar?: string;
     userProfile?: string;
@@ -237,7 +302,7 @@ declare namespace API {
   };
 
   type UserVO = {
-    id?: number | string;
+    id?: number;
     userAccount?: string;
     userName?: string;
     userAvatar?: string;

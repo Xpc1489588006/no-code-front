@@ -41,9 +41,10 @@ const router = useRouter()
 const loginUserStore = useLoginUserStore()
 const saving = ref(false)
 const appDetail = ref<API.AppVO>()
+const appId = computed(() => String(route.params.id || ''))
 
 const formState = reactive({
-  id: undefined as number | string | undefined,
+  id: undefined as string | number | undefined,
   appName: '',
   cover: '',
   priority: 0,
@@ -52,13 +53,15 @@ const formState = reactive({
 const isAdmin = computed(() => loginUserStore.loginUser.userRole === 'admin')
 
 const loadDetail = async () => {
-  const id = String(route.params.id || '')
-  if (!id) {
+  if (!appId.value) {
     message.error('应用 ID 无效')
     return
   }
 
-  const res = isAdmin.value ? await getAppByIdForAdmin({ id }) : await getAppVoById({ id })
+  const res = isAdmin.value
+    ? await getAppByIdForAdmin({ id: appId.value })
+    : await getAppVoById({ id: appId.value })
+
   if (res.data.code === 0 && res.data.data) {
     const data = res.data.data as API.AppVO
     appDetail.value = data

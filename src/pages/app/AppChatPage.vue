@@ -25,26 +25,47 @@
       <section class="app-chat-page__chat">
         <div class="chat-panel">
           <div ref="messageListRef" class="chat-panel__messages">
-            <div v-for="item in messages" :key="item.id" class="chat-message" :class="`chat-message--${item.role}`">
-              <a-avatar v-if="item.role === 'assistant'" class="chat-message__avatar">AI</a-avatar>
-              <div class="chat-message__bubble">
-                <div class="chat-message__content" v-html="renderContent(item.content)"></div>
-              </div>
+            <div class="chat-panel__history-action">
+              <a-button
+                v-if="hasMoreHistory"
+                type="link"
+                size="small"
+                :loading="loadingMoreHistory"
+                @click="loadMoreHistory"
+              >
+                加载更多
+              </a-button>
             </div>
+
+            <a-spin :spinning="loadingHistory">
+              <template v-if="messages.length">
+                <div
+                  v-for="item in messages"
+                  :key="item.id"
+                  class="chat-message"
+                  :class="`chat-message--${item.role}`"
+                >
+                  <a-avatar v-if="item.role === 'assistant'" class="chat-message__avatar">AI</a-avatar>
+                  <div class="chat-message__bubble">
+                    <div class="chat-message__content" v-html="renderContent(item.content)"></div>
+                  </div>
+                </div>
+              </template>
+              <a-empty v-else class="chat-panel__empty" description="暂无对话记录" />
+            </a-spin>
           </div>
 
-          <a-spin :spinning="sending">
-            <a-textarea
-              v-model:value="draft"
-              :auto-size="{ minRows: 4, maxRows: 8 }"
-              class="chat-panel__input"
-              placeholder="继续输入问题，AI 会在左侧实时生成回复"
-            />
-            <div class="chat-panel__actions">
-              <a-button @click="restoreInitPrompt">使用初始提示词</a-button>
-              <a-button type="primary" :loading="sending" @click="sendMessage">发送</a-button>
-            </div>
-          </a-spin>
+          <a-textarea
+            v-model:value="draft"
+            :auto-size="{ minRows: 4, maxRows: 8 }"
+            class="chat-panel__input"
+            placeholder="继续输入问题，AI 会在左侧实时生成回复"
+            :disabled="sending"
+          />
+          <div class="chat-panel__actions">
+            <a-button :disabled="sending" @click="restoreInitPrompt">使用初始提示词</a-button>
+            <a-button type="primary" :loading="sending" @click="sendMessage()">发送</a-button>
+          </div>
         </div>
       </section>
 
@@ -54,34 +75,44 @@
             <span>网页展示</span>
             <a-button size="small" :href="previewUrl" target="_blank" :disabled="!previewUrl">打开预览</a-button>
           </div>
-          <iframe v-if="previewUrl" :src="previewUrl" class="preview-panel__frame" />
+          <iframe v-if="previewReady && previewUrl" :src="previewUrl" class="preview-panel__frame" />
           <a-empty v-else description="等待代码生成完成后展示" />
         </div>
       </section>
     </div>
 
-    <a-modal v-model:open="deployModalVisible" title="部署结果" ok-text="关闭" cancel-text="复制链接" @cancel="copyDeployUrl">
+    <a-modal
+      v-model:open="deployModalVisible"
+      title="部署结果"
+      ok-text="关闭"
+      cancel-text="复制链接"
+      @cancel="copyDeployUrl"
+    >
       <a-input v-model:value="deployUrl" readonly />
     </a-modal>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { DownOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { deployApp, getAppVoById } from '@/api/appController'
+import { addChatHistory, listChatHistoryVoByPage } from '@/api/chatHistoryController'
 import { API_BASE_URL } from '@/request'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { getAppPreviewUrl, normalizeAppName } from '@/utils/app'
 import { streamSse } from '@/utils/sse'
 
 interface ChatMessage {
-  id: number
+  id: number | string
   role: 'user' | 'assistant'
   content: string
+  createTime?: string
 }
+
+const HISTORY_PAGE_SIZE = 10
 
 const route = useRoute()
 const router = useRouter()
@@ -91,15 +122,21 @@ const appId = computed(() => String(route.params.id || ''))
 const appData = ref<API.AppVO>()
 const draft = ref('')
 const messages = ref<ChatMessage[]>([])
+const loadingHistory = ref(false)
+const loadingMoreHistory = ref(false)
+const hasMoreHistory = ref(false)
+const historyTotal = ref(0)
 const sending = ref(false)
 const deploying = ref(false)
 const deployUrl = ref('')
 const deployModalVisible = ref(false)
 const messageListRef = ref<HTMLElement>()
 const abortController = ref<AbortController>()
+const previewReady = ref(false)
 
 const appName = computed(() => normalizeAppName(appData.value?.appName))
 const previewUrl = computed(() => getAppPreviewUrl(appData.value))
+const isOwnApp = computed(() => Boolean(appData.value?.userId && appData.value.userId === loginUserStore.loginUser.id))
 
 const loadApp = async () => {
   if (!appId.value) {
@@ -111,17 +148,117 @@ const loadApp = async () => {
   if (res.data.code === 0 && res.data.data) {
     appData.value = res.data.data
     draft.value = res.data.data.initPrompt || ''
-    if (!messages.value.length && res.data.data.initPrompt) {
-      messages.value.push({
-        id: Date.now(),
-        role: 'user',
-        content: res.data.data.initPrompt,
-      })
-      await sendMessage(res.data.data.initPrompt)
-    }
     return
   }
   message.error(res.data.message || '加载应用失败')
+}
+
+const toChatMessage = (item: API.ChatHistoryVO): ChatMessage => ({
+  id: item.id || `${item.messageType}-${item.createTime}-${Math.random()}`,
+  role: item.messageType === 'ai' ? 'assistant' : 'user',
+  content: item.content || item.errorMessage || '',
+  createTime: item.createTime,
+})
+
+const sortMessagesByCreateTime = (list: ChatMessage[]) =>
+  [...list].sort((a, b) => {
+    const left = a.createTime ? new Date(a.createTime).getTime() : Number.MAX_SAFE_INTEGER
+    const right = b.createTime ? new Date(b.createTime).getTime() : Number.MAX_SAFE_INTEGER
+    return left - right
+  })
+
+const mergeHistoryMessages = (historyList: ChatMessage[]) => {
+  const messageMap = new Map<number | string, ChatMessage>()
+  ;[...historyList, ...messages.value].forEach((item) => {
+    messageMap.set(item.id, item)
+  })
+  messages.value = sortMessagesByCreateTime(Array.from(messageMap.values()))
+}
+
+const getOldestHistoryCursor = () => messages.value.find((item) => item.createTime)?.createTime
+
+const updateMessageById = (messageId: number | string, content: string) => {
+  const target = messages.value.find((item) => item.id === messageId)
+  if (target) {
+    target.content = content
+  }
+}
+
+const loadHistory = async (cursor?: string) => {
+  if (!appId.value) {
+    return []
+  }
+
+  const res = await listChatHistoryVoByPage({
+    appId: appId.value,
+    pageNum: 1,
+    pageSize: HISTORY_PAGE_SIZE,
+    cursor,
+  })
+
+  if (res.data.code === 0 && res.data.data) {
+    const records = res.data.data.records || []
+    const historyMessages = sortMessagesByCreateTime(records.map(toChatMessage))
+    historyTotal.value = res.data.data.totalRow || records.length
+    hasMoreHistory.value = cursor ? records.length >= HISTORY_PAGE_SIZE : historyTotal.value > records.length
+    return historyMessages
+  }
+
+  message.error(res.data.message || '加载对话历史失败')
+  return []
+}
+
+const loadInitialHistory = async () => {
+  loadingHistory.value = true
+  try {
+    const historyMessages = await loadHistory()
+    messages.value = historyMessages
+    previewReady.value = historyMessages.length >= 2 || (await checkPreviewExists(appData.value))
+    await nextTick()
+    scrollToBottom()
+    return historyMessages
+  } catch (error) {
+    console.error('load chat history failed', error)
+    message.error('加载对话历史失败，请稍后重试')
+    return []
+  } finally {
+    loadingHistory.value = false
+  }
+}
+
+const loadMoreHistory = async () => {
+  const cursor = getOldestHistoryCursor()
+  if (!cursor || loadingMoreHistory.value) {
+    return
+  }
+
+  loadingMoreHistory.value = true
+  const oldScrollHeight = messageListRef.value?.scrollHeight || 0
+  try {
+    const historyMessages = await loadHistory(cursor)
+    mergeHistoryMessages(historyMessages)
+    await nextTick()
+    const el = messageListRef.value
+    if (el) {
+      el.scrollTop = el.scrollHeight - oldScrollHeight
+    }
+  } catch (error) {
+    console.error('load more chat history failed', error)
+    message.error('加载更多失败，请稍后重试')
+  } finally {
+    loadingMoreHistory.value = false
+  }
+}
+
+const initializePage = async () => {
+  messages.value = []
+  hasMoreHistory.value = false
+  previewReady.value = false
+  await loadApp()
+  const historyMessages = await loadInitialHistory()
+  if (isOwnApp.value && historyMessages.length === 0 && appData.value?.initPrompt) {
+    await sendMessage(appData.value.initPrompt, { preserveDraft: true })
+  }
 }
 
 const scrollToBottom = () => {
@@ -175,12 +312,25 @@ const parseStreamPayload = (payload: string) => {
 
 const formatGeneratedContent = (content: string) => {
   try {
-    const files = JSON.parse(content) as Record<string, unknown>
-    if (!files || Array.isArray(files) || typeof files !== 'object') {
+    const parsed = JSON.parse(content) as Record<string, unknown>
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
       return content
     }
 
-    const fileNames = Object.keys(files)
+    const generatedText = extractPreviewTextFromJson(content)
+    if (generatedText.trim()) {
+      return generatedText
+    }
+
+    if (typeof parsed.description === 'string' && parsed.description.trim()) {
+      return parsed.description
+    }
+
+    if (typeof parsed.reply === 'string' && parsed.reply.trim()) {
+      return parsed.reply
+    }
+
+    const fileNames = Object.keys(parsed)
     if (!fileNames.length) {
       return content
     }
@@ -191,7 +341,75 @@ const formatGeneratedContent = (content: string) => {
   }
 }
 
-const sendMessage = async (content?: string) => {
+const decodeJsonStringValue = (value: string) =>
+  value
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
+
+const findJsonStringEnd = (content: string, startIndex: number) => {
+  let escaping = false
+  for (let i = startIndex; i < content.length; i += 1) {
+    const char = content[i]
+    if (escaping) {
+      escaping = false
+      continue
+    }
+    if (char === '\\') {
+      escaping = true
+      continue
+    }
+    if (char === '"') {
+      return i
+    }
+  }
+  return -1
+}
+
+const extractStreamingJsonField = (jsonText: string, fieldName: string) => {
+  const keyMatch = new RegExp(`"${fieldName}"\\s*:`).exec(jsonText)
+  if (!keyMatch) {
+    return ''
+  }
+
+  const valueStartSearchIndex = keyMatch.index + keyMatch[0].length
+  const valueQuoteIndex = jsonText.indexOf('"', valueStartSearchIndex)
+  if (valueQuoteIndex === -1) {
+    return ''
+  }
+
+  const valueStartIndex = valueQuoteIndex + 1
+  const valueEndIndex = findJsonStringEnd(jsonText, valueStartIndex)
+  const rawValue =
+    valueEndIndex === -1
+      ? jsonText.slice(valueStartIndex)
+      : jsonText.slice(valueStartIndex, valueEndIndex)
+
+  return decodeJsonStringValue(rawValue)
+}
+
+const extractPreviewTextFromJson = (jsonText: string) => {
+  const fields = ['reply', 'description', 'html', 'htmlCode', 'cssCode', 'jsCode']
+  for (const field of fields) {
+    const value = extractStreamingJsonField(jsonText, field)
+    if (value) {
+      return value
+    }
+  }
+  return ''
+}
+
+const saveChatHistory = async (body: API.ChatHistoryAddRequest) => {
+  const res = await addChatHistory(body)
+  if (res.data.code !== 0) {
+    throw new Error(res.data.message || '保存对话历史失败')
+  }
+  return res.data.data
+}
+
+const sendMessage = async (content?: string, options?: { preserveDraft?: boolean }) => {
   const text = (content ?? draft.value).trim()
   if (!text || !appId.value) {
     message.warning('请输入内容')
@@ -199,35 +417,111 @@ const sendMessage = async (content?: string) => {
   }
 
   sending.value = true
-  const userMessage = content ? null : { id: Date.now(), role: 'user' as const, content: text }
-  if (userMessage) {
-    messages.value.push(userMessage)
+  const now = Date.now()
+  const userMessage: ChatMessage = {
+    id: `local-user-${now}`,
+    role: 'user',
+    content: text,
+    createTime: new Date(now).toISOString(),
   }
-  const assistantMessage: ChatMessage = { id: Date.now() + 1, role: 'assistant', content: '' }
-  messages.value.push(assistantMessage)
+  const assistantMessage: ChatMessage = {
+    id: `local-ai-${now}`,
+    role: 'assistant',
+    content: '正在生成...',
+    createTime: new Date(now + 1).toISOString(),
+  }
+  messages.value.push(userMessage, assistantMessage)
+  const assistantMessageId = assistantMessage.id
   scrollToBottom()
 
   abortController.value?.abort()
   abortController.value = new AbortController()
 
   try {
+    let streamText = ''
+    let assistantContent = ''
+
+    const userHistoryId = await saveChatHistory({
+      appId: appId.value,
+      messageType: 'user',
+      content: text,
+    })
+    if (userHistoryId) {
+      userMessage.id = userHistoryId
+    }
+
     await streamSse({
       url: `${API_BASE_URL}/app/chat/gen/code?appId=${appId.value}&message=${encodeURIComponent(text)}`,
       signal: abortController.value.signal,
       withCredentials: true,
       onMessage(payload) {
-        assistantMessage.content += parseStreamPayload(payload)
+        const chunk = parseStreamPayload(payload)
+        if (!chunk) {
+          return
+        }
+
+        streamText += chunk
+        const previewText = extractPreviewTextFromJson(streamText)
+        if (previewText) {
+          assistantContent = previewText
+          updateMessageById(assistantMessageId, assistantContent)
+        } else {
+          assistantContent += chunk
+          updateMessageById(assistantMessageId, assistantContent)
+        }
         scrollToBottom()
       },
     })
-    assistantMessage.content = formatGeneratedContent(assistantMessage.content)
+
+    const finalContent = formatGeneratedContent(streamText || assistantContent)
+    updateMessageById(assistantMessageId, finalContent)
+
+    const aiHistoryId = await saveChatHistory({
+      appId: appId.value,
+      messageType: 'ai',
+      content: finalContent,
+    })
+    if (aiHistoryId) {
+      assistantMessage.id = aiHistoryId
+    }
+    historyTotal.value += 2
+    if (!options?.preserveDraft) {
+      draft.value = ''
+    }
     await loadPreview()
   } catch (error) {
     console.error('chat generate failed', error)
-    assistantMessage.content = assistantMessage.content || '生成失败，请重试'
+    const fallbackMessage = assistantContentOrDefault(messages.value, assistantMessageId)
+    updateMessageById(assistantMessageId, fallbackMessage)
+    try {
+      await saveChatHistory({
+        appId: appId.value,
+        messageType: 'ai',
+        errorMessage: fallbackMessage,
+      })
+    } catch (historyError) {
+      console.error('save ai error history failed', historyError)
+    }
     message.error('生成失败，请重试')
   } finally {
     sending.value = false
+  }
+}
+
+const assistantContentOrDefault = (list: ChatMessage[], assistantId: number | string) => {
+  return list.find((item) => item.id === assistantId)?.content || '生成失败，请重试'
+}
+
+const checkPreviewExists = async (app?: Partial<API.AppVO> | Partial<API.App>) => {
+  if (!app?.id) {
+    return false
+  }
+  const url = getAppPreviewUrl(app)
+  try {
+    const resp = await fetch(url, { method: 'GET', credentials: 'include' })
+    return resp.ok
+  } catch {
+    return false
   }
 }
 
@@ -239,6 +533,7 @@ const loadPreview = async () => {
   if (res.data.code === 0 && res.data.data) {
     appData.value = res.data.data
   }
+  previewReady.value = historyTotal.value >= 2 || (await checkPreviewExists(appData.value))
 }
 
 const handleDeploy = async () => {
@@ -280,14 +575,13 @@ const handleEdit = () => {
 watch(
   () => route.params.id,
   async () => {
-    await loadApp()
+    await initializePage()
   },
 )
 
 onMounted(async () => {
   await loginUserStore.fetchLoginUser()
-  await loadApp()
-  scrollToBottom()
+  await initializePage()
 })
 
 onUnmounted(() => {
@@ -344,6 +638,16 @@ onUnmounted(() => {
   overflow: auto;
   min-height: 520px;
   padding-right: 4px;
+}
+
+.chat-panel__history-action {
+  display: flex;
+  justify-content: center;
+  min-height: 24px;
+}
+
+.chat-panel__empty {
+  margin-top: 120px;
 }
 
 .chat-message {

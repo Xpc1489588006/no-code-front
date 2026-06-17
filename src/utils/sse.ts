@@ -45,18 +45,7 @@ export const streamSse = async ({ url, signal, withCredentials, onMessage }: Str
   const reader = response.body.getReader()
   const decoder = new TextDecoder('utf-8')
   let eventName = 'message'
-  let dataLines: string[] = []
   let buffer = ''
-
-  const dispatch = () => {
-    if (!dataLines.length) {
-      eventName = 'message'
-      return
-    }
-    onMessage(dataLines.join('\n'), eventName)
-    dataLines = []
-    eventName = 'message'
-  }
 
   while (true) {
     const { done, value } = await reader.read()
@@ -69,11 +58,11 @@ export const streamSse = async ({ url, signal, withCredentials, onMessage }: Str
       const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
 
       if (!line) {
-        dispatch()
+        eventName = 'message'
       } else if (line.startsWith('event:')) {
         eventName = line.slice(6).trim() || 'message'
       } else if (line.startsWith('data:')) {
-        dataLines.push(line.slice(5).trimStart())
+        onMessage(line.slice(5).trimStart(), eventName)
       }
 
       lineBreakIndex = buffer.indexOf('\n')
@@ -83,10 +72,9 @@ export const streamSse = async ({ url, signal, withCredentials, onMessage }: Str
       if (buffer.trim()) {
         const trailingLine = buffer.endsWith('\r') ? buffer.slice(0, -1) : buffer
         if (trailingLine.startsWith('data:')) {
-          dataLines.push(trailingLine.slice(5).trimStart())
+          onMessage(trailingLine.slice(5).trimStart(), eventName)
         }
       }
-      dispatch()
       break
     }
   }
