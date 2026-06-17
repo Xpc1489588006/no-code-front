@@ -73,9 +73,14 @@
         <div class="preview-panel">
           <div class="preview-panel__toolbar">
             <span>网页展示</span>
-            <a-button size="small" :href="previewUrl" target="_blank" :disabled="!previewUrl">打开预览</a-button>
+            <a-button size="small" :href="previewFrameUrl" target="_blank" :disabled="!previewUrl">打开预览</a-button>
           </div>
-          <iframe v-if="previewReady && previewUrl" :src="previewUrl" class="preview-panel__frame" />
+          <iframe
+            v-if="previewReady && previewFrameUrl"
+            :key="previewVersion"
+            :src="previewFrameUrl"
+            class="preview-panel__frame"
+          />
           <a-empty v-else description="等待代码生成完成后展示" />
         </div>
       </section>
@@ -133,9 +138,17 @@ const deployModalVisible = ref(false)
 const messageListRef = ref<HTMLElement>()
 const abortController = ref<AbortController>()
 const previewReady = ref(false)
+const previewVersion = ref(0)
 
 const appName = computed(() => normalizeAppName(appData.value?.appName))
 const previewUrl = computed(() => getAppPreviewUrl(appData.value))
+const previewFrameUrl = computed(() => {
+  if (!previewUrl.value) {
+    return ''
+  }
+  const separator = previewUrl.value.includes('?') ? '&' : '?'
+  return `${previewUrl.value}${separator}t=${previewVersion.value}`
+})
 const isOwnApp = computed(() => Boolean(appData.value?.userId && appData.value.userId === loginUserStore.loginUser.id))
 
 const loadApp = async () => {
@@ -184,6 +197,10 @@ const updateMessageById = (messageId: number | string, content: string) => {
   }
 }
 
+const refreshPreviewFrame = () => {
+  previewVersion.value += 1
+}
+
 const loadHistory = async (cursor?: string) => {
   if (!appId.value) {
     return []
@@ -214,6 +231,9 @@ const loadInitialHistory = async () => {
     const historyMessages = await loadHistory()
     messages.value = historyMessages
     previewReady.value = historyMessages.length >= 2 || (await checkPreviewExists(appData.value))
+    if (previewReady.value) {
+      refreshPreviewFrame()
+    }
     await nextTick()
     scrollToBottom()
     return historyMessages
@@ -254,6 +274,7 @@ const initializePage = async () => {
   messages.value = []
   hasMoreHistory.value = false
   previewReady.value = false
+  previewVersion.value = 0
   await loadApp()
   const historyMessages = await loadInitialHistory()
   if (isOwnApp.value && historyMessages.length === 0 && appData.value?.initPrompt) {
@@ -534,6 +555,9 @@ const loadPreview = async () => {
     appData.value = res.data.data
   }
   previewReady.value = historyTotal.value >= 2 || (await checkPreviewExists(appData.value))
+  if (previewReady.value) {
+    refreshPreviewFrame()
+  }
 }
 
 const handleDeploy = async () => {
