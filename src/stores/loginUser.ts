@@ -1,35 +1,28 @@
 import { defineStore } from 'pinia'
-import { getLoginUser } from '@/api/userController'
+import { ref } from 'vue'
+import { getLoginUser } from '@/api/userController.ts'
 
-const initialLoginUser = (): API.LoginUserVO => ({
-  id: 0,
-  userName: 'Guest',
-  userRole: 'guest',
-})
+/**
+ * 登录用户信息
+ */
+export const useLoginUserStore = defineStore('loginUser', () => {
+  // 默认值
+  const loginUser = ref<API.LoginUserVO>({
+    userName: '未登录',
+  })
 
-export const useLoginUserStore = defineStore('loginUser', {
-  state: () => ({
-    loginUser: initialLoginUser() as API.LoginUserVO,
-  }),
-  actions: {
-    async fetchLoginUser() {
-      try {
-        const res = await getLoginUser()
-        if (res.data.code === 0 && res.data.data) {
-          this.loginUser = res.data.data
-          return res.data.data
-        }
-      } catch (error) {
-        console.error('fetch login user failed', error)
-      }
-      this.loginUser = initialLoginUser()
-      return this.loginUser
-    },
-    setLoginUser(loginUser: API.LoginUserVO) {
-      this.loginUser = loginUser
-    },
-    clearLoginUser() {
-      this.loginUser = initialLoginUser()
-    },
-  },
+  // 获取登录用户信息
+  async function fetchLoginUser() {
+    const res = await getLoginUser()
+    if (res.data.code === 0 && res.data.data) {
+      loginUser.value = res.data.data
+    }
+  }
+
+  // 更新登录用户信息
+  function setLoginUser(newLoginUser: any) {
+    loginUser.value = newLoginUser
+  }
+
+  return { loginUser, fetchLoginUser, setLoginUser }
 })

@@ -8,7 +8,7 @@
           rel="noopener noreferrer"
           class="author-link"
         >
-          nocode 零代码应用生成平台
+          编程导航原创项目 by 程序员鱼皮
         </a>
       </p>
     </div>
