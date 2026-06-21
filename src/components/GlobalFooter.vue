@@ -3,12 +3,12 @@
     <div class="footer-content">
       <p class="copyright">
         <a
-          href="https://www.codefather.cn"
+          href="https://github.com/Xpc1489588006"
           target="_blank"
           rel="noopener noreferrer"
           class="author-link"
         >
-          编程导航原创项目 by 程序员鱼皮
+          GitHub: Xpc1489588006
         </a>
       </p>
     </div>
@@ -16,7 +16,7 @@
 </template>
 
 <script setup lang="ts">
-// 无需额外的响应式数据
+// No reactive state needed.
 </script>
 
 <style scoped>
